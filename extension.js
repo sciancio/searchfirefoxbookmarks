@@ -30,6 +30,9 @@ const Util = imports.misc.util;
 // or has been disabled via disable().
 var FBSearchProvider = null;
 
+var bookmarkFileMonitor = null;
+
+
 function FirefoxBookmarksSearchProvider() {
 	this._init();
 }
@@ -71,10 +74,9 @@ FirefoxBookmarksSearchProvider.prototype = {
 
 		this._readBookmarks();
 
-		this.configFile = Gio.file_new_for_path(this.bookmarkFilePath);
-		this._bookmarkFileMonitor = this.configFile.monitor(Gio.FileMonitorFlags.NONE, null);
-		this._bookmarkFileMonitor.connect('changed', Lang.bind(this, this._readBookmarks));
-
+		let file = Gio.file_new_for_path(this.bookmarkFilePath);
+		bookmarkFileMonitor = file.monitor(Gio.FileMonitorFlags.NONE, null);
+		bookmarkFileMonitor.connect('changed', Lang.bind(this, this._readBookmarks));
 	},
 
 
@@ -90,17 +92,16 @@ FirefoxBookmarksSearchProvider.prototype = {
 
 				for (i=0; i<lines.length; i++) {
 					if (lines[i] == '') continue;			// empty lines
-					if (lines[i].match(/\[*\]/)) {
+
+					var key_value = lines[i].match(/([^]*)=([^]*)/);
+					if (key_value != null) {	// key-value pair
+						if (key_value[1] == 'Path') last_path = key_value[2];
+						if (key_value[1] == 'Default') last_default = key_value[2];
+
 						if (last_default == 1) {
 							default_path = last_path;
 							break;
 						} else continue;
-					};		// profile name
-
-					var key_value = lines[i].match(/([^ ]*)=([^ ]*)/);
-					if (key_value != null) {	// key-value pair
-						if (key_value[1] == 'Path') last_path = key_value[2];
-						if (key_value[1] == 'Default') last_default = key_value[2];
 					}
 				}
 			}
@@ -166,7 +167,6 @@ FirefoxBookmarksSearchProvider.prototype = {
 				if (child.type == 'text/x-moz-place-container') {
 					this._readTree(child.children, menuSub);
 				}
-			
 			}
 		}
 	},
@@ -233,11 +233,9 @@ FirefoxBookmarksSearchProvider.prototype = {
 
 	activateResult: function(id) {
 		Util.spawn(['/usr/bin/firefox', '--new-tab', id.url]);
-		global.log("FB: " + id.name + " url: " + id.url);
 	},
 
 	_checkBookmarknames: function(bookmarks, terms) {
-		global.logError("FB: " + terms);
 		let searchResults = [];
 		for (var i=0; i<bookmarks.length; i++) {
 			for (var j=0; j<terms.length; j++) {
@@ -293,5 +291,7 @@ function disable() {
 		Main.overview.removeSearchProvider(FBSearchProvider);
 		FBSearchProvider = null;
 	}
+	
+	bookmarkFileMonitor.cancel();
 }
 
