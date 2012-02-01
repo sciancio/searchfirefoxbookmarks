@@ -11,7 +11,7 @@ Copy the tarball to $HOME/.local/share/gnome-shell/extensions
 and unpack it. A directory called searchfirefoxbookmarks@ciancio.net
 should be created. 
 
-For use by all users, install in /usr/share/gnome-shell/extensions.
+For use by all users, install in /usr/share/gnome-shell/extensions (https://extensions.gnome.org/extension/149/search-firefox-bookmarks-provider/).
 
 Restart your GNOME shell (Alt-F2 r is one way) and enable the
 extension using gnome-tweak-tool (install it if not present).
