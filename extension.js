@@ -68,6 +68,7 @@ FirefoxBookmarksSearchProvider.prototype = {
 			if ( !(this.bookmarkFilePath = this._getBookmarkFilePath(mozillaDefaultDirPath)) ) {
 				return false;
 			}
+
 		}
 
 		this._configBookmarks = [];
@@ -77,6 +78,8 @@ FirefoxBookmarksSearchProvider.prototype = {
 		let file = Gio.file_new_for_path(this.bookmarkFilePath);
 		bookmarkFileMonitor = file.monitor(Gio.FileMonitorFlags.NONE, null);
 		bookmarkFileMonitor.connect('changed', Lang.bind(this, this._readBookmarks));
+
+		return true;
 	},
 
 
@@ -90,7 +93,7 @@ FirefoxBookmarksSearchProvider.prototype = {
 			if (filedata[0]) {
 				let lines = String(filedata[1]).split('\n');
 
-				for (i=0; i<lines.length; i++) {
+				for (let i=0; i<lines.length; i++) {
 					if (lines[i] == '') continue;			// empty lines
 
 					var key_value = lines[i].match(/([^]*)=([^]*)/);
@@ -141,12 +144,11 @@ FirefoxBookmarksSearchProvider.prototype = {
 		for (let i = 0; i < jsondata.children.length; i++) {
 			let child = jsondata.children[i];
 
-			if (child.root == 'toolbarFolder') {
-				toolbarMenu = child;
-			}
+			if (child.root == 'tagsFolder') continue;
+			
+			this._readTree(child.children, this);
 		}
 
-		this._readTree(toolbarMenu.children, this);
 		return true;
 	},
 
@@ -180,7 +182,8 @@ FirefoxBookmarksSearchProvider.prototype = {
 		let dir = '';
 		if ((bookmarkDir) && GLib.file_test(bookmarkDir, GLib.FileTest.IS_DIR) ) {
 			dir = Gio.file_new_for_path(bookmarkDir);
-			var backupEnum = dir.enumerate_children('*', Gio.FileQueryInfoFlags.NONE, null);
+			var backupEnum = dir.enumerate_children('standard::name,standard::type,time::modified',
+																								Gio.FileQueryInfoFlags.NONE, null);
 		} else {
 			Main.notifyError("Directory Error", bookmarkDir + " seems doesn't exist");
 			return false;
@@ -190,13 +193,15 @@ FirefoxBookmarksSearchProvider.prototype = {
 		let max = 0;
 		let info;
 		while ((info = backupEnum.next_file(null)) != null) {
+
 			let type = info.get_file_type();
-			let child = dir.get_child(info.get_name());
-	
+
 			if (type == Gio.FileType.REGULAR) {
 
 				info.get_modification_time(infoTimeVal);
 
+//				global.log("SFB: " + infoTimeVal.tv_sec + ">" + max + " - " + info);
+				
 				if (infoTimeVal.tv_sec > max) {
 					max = infoTimeVal.tv_sec;
 					var lastFile = info;
@@ -218,18 +223,18 @@ FirefoxBookmarksSearchProvider.prototype = {
 
 	getResultMeta: function(resultId) {
 		let appSys = Shell.AppSystem.get_default();
-		let app = appSys.lookup_app('mozilla-firefox.desktop');
+		let app = appSys.lookup_app('firefox.desktop');
+		if (app == null) app = appSys.lookup_app('mozilla-firefox.desktop');
 		
 		let bookmark_name = resultId.name;
-		bookmark_name = bookmark_name;
-		
-		return { 'id': resultId,
+
+		return {	'id': resultId,
 							'name': bookmark_name,
 							'createIcon': function(size) {
 																return app.create_icon_texture(size);
 														}
 		};
-	},
+	}, 
 
 	activateResult: function(id) {
 		Util.spawn(['/usr/bin/firefox', '--new-tab', id.url]);
@@ -242,9 +247,10 @@ FirefoxBookmarksSearchProvider.prototype = {
 				try {
 					let name = bookmarks[i][0];
 					let url = bookmarks[i][1];
+					let searchStr = name+url;
 					let pattern = new RegExp(terms[j],"gi");
-					if (name.match(pattern)) {
-
+					if (searchStr.match(pattern)) {
+					
 						searchResults.push({
 								'name': name,
 								'url': url
