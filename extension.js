@@ -223,9 +223,9 @@ FirefoxBookmarksSearchProvider.prototype = {
 
 	getResultMeta: function(resultId) {
 		let appSys = Shell.AppSystem.get_default();
-		let app = appSys.lookup_app('firefox.desktop');
-		if (app == null) app = appSys.lookup_app('mozilla-firefox.desktop');
 		
+		let app = appSys.lookup_heuristic_basename('firefox.desktop');
+
 		let bookmark_name = resultId.name;
 
 		return {	'id': resultId,
