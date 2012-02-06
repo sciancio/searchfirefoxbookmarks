@@ -41,7 +41,7 @@ FirefoxBookmarksSearchProvider.prototype = {
 	__proto__: Search.SearchProvider.prototype,
 
 	_init: function(name) {
-		Search.SearchProvider.prototype._init.call(this, "Firefox Bookmarks");
+		Search.SearchProvider.prototype._init.call(this, "FIREFOX BOOKMARKS");
 
 		// Retrieve environment variables
 		this.FirefoxBookmarkBackupsDir = GLib.getenv("FIREFOX_BOOKMARK_BACKUPS_DIR");
@@ -101,10 +101,8 @@ FirefoxBookmarksSearchProvider.prototype = {
 						if (key_value[1] == 'Path') last_path = key_value[2];
 						if (key_value[1] == 'Default') last_default = key_value[2];
 
-						if (last_default == 1) {
-							default_path = last_path;
-							break;
-						} else continue;
+						default_path = last_path;
+						if (last_default == 1) break; else continue;
 					}
 				}
 			}
@@ -198,10 +196,12 @@ FirefoxBookmarksSearchProvider.prototype = {
 
 			if (type == Gio.FileType.REGULAR) {
 
-				info.get_modification_time(infoTimeVal);
+				try {
+					let infoTimeVal = info.get_modification_time();
+				} catch (e) {
+					info.get_modification_time(infoTimeVal);
+				}
 
-//				global.log("SFB: " + infoTimeVal.tv_sec + ">" + max + " - " + info);
-				
 				if (infoTimeVal.tv_sec > max) {
 					max = infoTimeVal.tv_sec;
 					var lastFile = info;
@@ -223,7 +223,6 @@ FirefoxBookmarksSearchProvider.prototype = {
 
 	getResultMeta: function(resultId) {
 		let appSys = Shell.AppSystem.get_default();
-		
 		let app = appSys.lookup_heuristic_basename('firefox.desktop');
 
 		let bookmark_name = resultId.name;
