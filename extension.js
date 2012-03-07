@@ -22,6 +22,7 @@ const GLib = imports.gi.GLib;
 const Lang = imports.lang;
 const Shell = imports.gi.Shell;
 const Util = imports.misc.util;
+const St = imports.gi.St;
 
 // Settings
 
@@ -181,7 +182,7 @@ FirefoxBookmarksSearchProvider.prototype = {
 		if ((bookmarkDir) && GLib.file_test(bookmarkDir, GLib.FileTest.IS_DIR) ) {
 			dir = Gio.file_new_for_path(bookmarkDir);
 			var backupEnum = dir.enumerate_children('standard::name,standard::type,time::modified',
-																								Gio.FileQueryInfoFlags.NONE, null);
+													Gio.FileQueryInfoFlags.NONE, null);
 		} else {
 			Main.notifyError("Directory Error", bookmarkDir + " seems doesn't exist");
 			return false;
@@ -227,12 +228,13 @@ FirefoxBookmarksSearchProvider.prototype = {
 
 		let bookmark_name = resultId.name;
 
-		return {	'id': resultId,
-							'name': bookmark_name,
-							'createIcon': function(size) {
-																return app.create_icon_texture(size);
-														}
-		};
+        return { 'id': resultId,
+                 'name': bookmark_name,
+                 'createIcon': function(size) {
+                        let xicon = new Gio.ThemedIcon({name: 'firefox'});
+                        return new St.Icon({icon_size: size, gicon: xicon});
+                }
+        };
 	}, 
 
 	activateResult: function(id) {
