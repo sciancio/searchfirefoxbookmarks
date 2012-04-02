@@ -34,271 +34,270 @@ var FBSearchProvider = null;
 var bookmarkFileMonitor = null;
 
 
-function FirefoxBookmarksSearchProvider() {
-	this._init();
-}
+const FirefoxBookmarksSearchProvider = new Lang.Class({
+    Name: 'FirefoxBookmarksSearchProvider',
+    Extends: Search.SearchProvider,
 
-FirefoxBookmarksSearchProvider.prototype = {
-	__proto__: Search.SearchProvider.prototype,
+    _init: function(name) {
+        Search.SearchProvider.prototype._init.call(this, "FIREFOX BOOKMARKS");
 
-	_init: function(name) {
-		Search.SearchProvider.prototype._init.call(this, "FIREFOX BOOKMARKS");
+        // Retrieve environment variables
+        this.FirefoxBookmarkBackupsDir = GLib.getenv("FIREFOX_BOOKMARK_BACKUPS_DIR");
+        this.FirefoxBookmarkFile = GLib.getenv("FIREFOX_BOOKMARK_FILE");
 
-		// Retrieve environment variables
-		this.FirefoxBookmarkBackupsDir = GLib.getenv("FIREFOX_BOOKMARK_BACKUPS_DIR");
-		this.FirefoxBookmarkFile = GLib.getenv("FIREFOX_BOOKMARK_FILE");
+        // Check environment variables
+        if (this.FirefoxBookmarkFile != null) {
+            // Env Bookmark File defined
+            this.bookmarkFilePath = this.FirefoxBookmarkFile;
 
-		// Check environment variables
-		if (this.FirefoxBookmarkFile != null) {
-			// Env Bookmark File defined
-			this.bookmarkFilePath = this.FirefoxBookmarkFile;
+        } else if (this.FirefoxBookmarkBackupsDir != null) {
+            // Env Bookmark Dir defined
+            if ( !(this.bookmarkFilePath = this._getBookmarkFilePath(this.FirefoxBookmarkBackupsDir)) ) {
+                return false;
+            }
+        } else {
+            // Default
+            let firefoxProfileFile = GLib.build_filenamev([GLib.get_home_dir(), ".mozilla/firefox/profiles.ini"]);
+            var [result, defaultProfile] = this._getFirefoxDefaultProfile(firefoxProfileFile);
 
-		} else if (this.FirefoxBookmarkBackupsDir != null) {
-			// Env Bookmark Dir defined
-			if ( !(this.bookmarkFilePath = this._getBookmarkFilePath(this.FirefoxBookmarkBackupsDir)) ) {
-				return false;
-			}
-		} else {
-			// Default
-			let firefoxProfileFile = GLib.build_filenamev([GLib.get_home_dir(), ".mozilla/firefox/profiles.ini"]);
-			var [result, defaultProfile] = this._getFirefoxDefaultProfile(firefoxProfileFile);
-			
-			let mozillaDefaultDirPath = GLib.build_filenamev([GLib.get_home_dir(), ".mozilla/firefox/", 
-						defaultProfile, "bookmarkbackups/"]);
+            let mozillaDefaultDirPath = GLib.build_filenamev([GLib.get_home_dir(), ".mozilla/firefox/", 
+                        defaultProfile, "bookmarkbackups/"]);
 
-			if ( !(this.bookmarkFilePath = this._getBookmarkFilePath(mozillaDefaultDirPath)) ) {
-				return false;
-			}
+            if ( !(this.bookmarkFilePath = this._getBookmarkFilePath(mozillaDefaultDirPath)) ) {
+                return false;
+            }
 
-		}
+        }
 
-		this._configBookmarks = [];
+        this._configBookmarks = [];
 
-		this._readBookmarks();
+        this._readBookmarks();
 
-		let file = Gio.file_new_for_path(this.bookmarkFilePath);
-		bookmarkFileMonitor = file.monitor(Gio.FileMonitorFlags.NONE, null);
-		bookmarkFileMonitor.connect('changed', Lang.bind(this, this._readBookmarks));
+        let file = Gio.file_new_for_path(this.bookmarkFilePath);
+        bookmarkFileMonitor = file.monitor(Gio.FileMonitorFlags.NONE, null);
+        bookmarkFileMonitor.connect('changed', Lang.bind(this, this._readBookmarks));
 
-		return true;
-	},
+        return true;
+    },
 
 
-	_getFirefoxDefaultProfile : function (firefoxProfileFile) {
+    _getFirefoxDefaultProfile : function (firefoxProfileFile) {
 
-		let last_path, last_default, default_path;
+        let last_path, last_default, default_path;
 
-		if (GLib.file_test(firefoxProfileFile, GLib.FileTest.EXISTS) ) {
-			let filedata = GLib.file_get_contents(firefoxProfileFile, null, 0);
-	
-			if (filedata[0]) {
-				let lines = String(filedata[1]).split('\n');
+        if (GLib.file_test(firefoxProfileFile, GLib.FileTest.EXISTS) ) {
+            let filedata = GLib.file_get_contents(firefoxProfileFile, null, 0);
 
-				for (let i=0; i<lines.length; i++) {
-					if (lines[i] == '') continue;			// empty lines
+            if (filedata[0]) {
+                let lines = String(filedata[1]).split('\n');
 
-					var key_value = lines[i].match(/([^]*)=([^]*)/);
-					if (key_value != null) {	// key-value pair
-						if (key_value[1] == 'Path') last_path = key_value[2];
-						if (key_value[1] == 'Default') last_default = key_value[2];
+                for (let i=0; i<lines.length; i++) {
+                    if (lines[i] == '') continue;			// empty lines
 
-						default_path = last_path;
-						if (last_default == 1) break; else continue;
-					}
-				}
-			}
-	
-		} else return [false, "File not exist"];
-	
-		return [true, default_path];
-	},
+                    var key_value = lines[i].match(/([^]*)=([^]*)/);
+                    if (key_value != null) {	// key-value pair
+                        if (key_value[1] == 'Path') last_path = key_value[2];
+                        if (key_value[1] == 'Default') last_default = key_value[2];
 
-
-	// Read all bookmarks tree
-	_readBookmarks : function () {
-
-		let filedata;
-		try {
-			filedata = GLib.file_get_contents(this.bookmarkFilePath, null, 0);
-		} catch (e) {
-			Main.notifyError("Error reading file", e.message);
-			return false;
-		}
-
-		let jsondata = null;
-		if ( (filedata[1].length != 0) && (filedata[1] != null) ) {
-			try {
-				jsondata = JSON.parse (filedata[1]);
-			} catch (e) {
-				Main.notifyError("Error parsing file - "+ filedata, e.message);
-				return false;
-			}
-		} else {
-			Main.notifyError("Error parsing file - Empty data");
-			return false;
-		}
-
-		// Check to find right tree
-		let toolbarMenu = '';
-		for (let i = 0; i < jsondata.children.length; i++) {
-			let child = jsondata.children[i];
-
-			if (child.root == 'tagsFolder') continue;
-			
-			this._readTree(child.children, this);
-		}
-
-		return true;
-	},
-
-
-	_readTree : function (node, parent) {
-
-		let child, menuItem, menuSep, menuSub, ident_prec;
-
-		// For each child ... 
-		for (let i = 0; i < node.length; i++) {
-			child = node[i];
-
-			if (child.hasOwnProperty('type')) {
-				if (child.type == 'text/x-moz-place') {
-					this._configBookmarks.push([child.title, child.uri]);
-				}
-			
-				if (child.type == 'text/x-moz-place-container') {
-					this._readTree(child.children, menuSub);
-				}
-			}
-		}
-	},
-
-
-
-	// Return complete path of bookmark json file
-	// bookmarkDir: dir of json bookmark file
-	_getBookmarkFilePath : function (bookmarkDir) {
-
-		let dir = '';
-		if ((bookmarkDir) && GLib.file_test(bookmarkDir, GLib.FileTest.IS_DIR) ) {
-			dir = Gio.file_new_for_path(bookmarkDir);
-			var backupEnum = dir.enumerate_children('standard::name,standard::type,time::modified',
-													Gio.FileQueryInfoFlags.NONE, null);
-		} else {
-			Main.notifyError("Directory Error", bookmarkDir + " seems doesn't exist");
-			return false;
-		}
-
-		let infoTimeVal = new GLib.TimeVal();
-		let max = 0;
-		let info;
-		while ((info = backupEnum.next_file(null)) != null) {
-
-			let type = info.get_file_type();
-
-			if (type == Gio.FileType.REGULAR) {
-
-				try {
-					let infoTimeVal = info.get_modification_time();
-				} catch (e) {
-					info.get_modification_time(infoTimeVal);
-				}
-
-				if (infoTimeVal.tv_sec > max) {
-					max = infoTimeVal.tv_sec;
-					var lastFile = info;
-				}
-			}
-		}
-		backupEnum.close(null);
-
-		if ( (typeof(lastFile) == 'undefined') || 
-				!GLib.file_test(GLib.build_filenamev([bookmarkDir, lastFile.get_name()]), GLib.FileTest.EXISTS) ) {
-			Main.notifyError("Directory Error", "It seems are no files in " + bookmarkDir);
-			return false;
-		}
-
-		return GLib.build_filenamev([bookmarkDir, lastFile.get_name()]);
-	},
-
-
-
-	getResultMeta: function(resultId) {
-		let appSys = Shell.AppSystem.get_default();
-		let app = appSys.lookup_heuristic_basename('firefox.desktop');
-
-		let bookmark_name = resultId.name;
-
-        return { 'id': resultId,
-                 'name': bookmark_name,
-                 'createIcon': function(size) {
-                        let xicon = new Gio.ThemedIcon({name: 'firefox'});
-                        return new St.Icon({icon_size: size, gicon: xicon});
+                        default_path = last_path;
+                        if (last_default == 1) break; else continue;
+                    }
                 }
-        };
-	}, 
+            }
 
-	activateResult: function(id) {
-		Util.spawn(['/usr/bin/firefox', '--new-tab', id.url]);
-	},
+        } else return [false, "File not exist"];
 
-	_checkBookmarknames: function(bookmarks, terms) {
-		let searchResults = [];
-		for (var i=0; i<bookmarks.length; i++) {
-			for (var j=0; j<terms.length; j++) {
-				try {
-					let name = bookmarks[i][0];
-					let url = bookmarks[i][1];
-					let searchStr = name+url;
-					let pattern = new RegExp(terms[j],"gi");
-					if (searchStr.match(pattern)) {
-					
-						searchResults.push({
-								'name': name,
-								'url': url
-						});
-					}
-				}
-				catch(ex) {
-					continue;
-				}
-			}
-		}
-		return searchResults;
-	},
+        return [true, default_path];
+    },
 
-	getInitialResultSet: function(terms) {
-		// check if a found host-name begins like the search-term
-		let searchResults = [];
-		searchResults = searchResults.concat(this._checkBookmarknames(this._configBookmarks, terms));
+    // Read all bookmarks tree
+    _readBookmarks : function () {
 
-		if (searchResults.length > 0) {
-			return(searchResults);
-		}
+        let filedata;
+        try {
+            filedata = GLib.file_get_contents(this.bookmarkFilePath, null, 0);
+        } catch (e) {
+            Main.notifyError("Error reading file", e.message);
+            return false;
+        }
 
-		return []
-	},
+        let jsondata = null;
+        if ( (filedata[1].length != 0) && (filedata[1] != null) ) {
+            try {
+                jsondata = JSON.parse (filedata[1]);
+            } catch (e) {
+                Main.notifyError("Error parsing file - "+ filedata, e.message);
+                return false;
+            }
+        } else {
+            Main.notifyError("Error parsing file - Empty data");
+            return false;
+        }
 
-	getSubsearchResultSet: function(previousResults, terms) {
-		return this.getInitialResultSet(terms);
-	},
-};
+        // Check to find right tree
+        let toolbarMenu = '';
+        for (let i = 0; i < jsondata.children.length; i++) {
+            let child = jsondata.children[i];
+
+            if (child.root == 'tagsFolder') continue;
+
+            this._readTree(child.children, this);
+        }
+
+        return true;
+    },
+
+    _readTree : function (node, parent) {
+
+        let child, menuItem, menuSep, menuSub, ident_prec;
+
+        // For each child ... 
+        for (let i = 0; i < node.length; i++) {
+            child = node[i];
+
+            if (child.hasOwnProperty('type')) {
+                if (child.type == 'text/x-moz-place') {
+                    this._configBookmarks.push([child.title, child.uri]);
+                }
+
+                if (child.type == 'text/x-moz-place-container') {
+                    this._readTree(child.children, menuSub);
+                }
+            }
+        }
+    },
+
+    // Return complete path of bookmark json file
+    // bookmarkDir: dir of json bookmark file
+    _getBookmarkFilePath : function (bookmarkDir) {
+
+        let dir = '';
+        if ((bookmarkDir) && GLib.file_test(bookmarkDir, GLib.FileTest.IS_DIR) ) {
+            dir = Gio.file_new_for_path(bookmarkDir);
+            var backupEnum = dir.enumerate_children('standard::name,standard::type,time::modified',
+                                                    Gio.FileQueryInfoFlags.NONE, null);
+        } else {
+            Main.notifyError("Directory Error", bookmarkDir + " seems doesn't exist");
+            return false;
+        }
+
+        let infoTimeVal = new GLib.TimeVal();
+        let max = 0;
+        let info;
+        while ((info = backupEnum.next_file(null)) != null) {
+
+            let type = info.get_file_type();
+
+            if (type == Gio.FileType.REGULAR) {
+
+                let infoTimeVal = info.get_modification_time();
+
+                if (infoTimeVal.tv_sec > max) {
+                    max = infoTimeVal.tv_sec;
+                    var lastFile = info;
+
+                }
+            }
+        }
+        backupEnum.close(null);
+
+        if ( (typeof(lastFile) == 'undefined') || 
+                !GLib.file_test(GLib.build_filenamev([bookmarkDir, lastFile.get_name()]), GLib.FileTest.EXISTS) ) {
+            Main.notifyError("Directory Error", "It seems are no files in " + bookmarkDir);
+            return false;
+        }
+
+        return GLib.build_filenamev([bookmarkDir, lastFile.get_name()]);
+    },
+
+
+
+    getResultMetas: function(resultIds) {
+
+        let metas = [];
+        
+        for (let i = 0; i < resultIds.length; i++) {
+
+            let resultId = resultIds[i];
+
+            let appSys = Shell.AppSystem.get_default();
+            let app = appSys.lookup_heuristic_basename('firefox.desktop');
+
+            let bookmark_name = resultId.name;
+
+            metas.push({ 'id': resultId,
+                     'name': bookmark_name,
+                     'createIcon': function(size) {
+                            let xicon = new Gio.ThemedIcon({name: 'firefox'});
+                            return new St.Icon({icon_size: size, gicon: xicon});
+                    }
+            });
+        }
+        return metas;
+    },
+
+    activateResult: function(id) {
+        Util.spawn(['/usr/bin/firefox', '--new-tab', id.url]);
+    },
+
+    _checkBookmarknames: function(bookmarks, terms) {
+        let searchResults = [];
+        for (var i=0; i<bookmarks.length; i++) {
+            for (var j=0; j<terms.length; j++) {
+                try {
+                    let name = bookmarks[i][0];
+                    let url = bookmarks[i][1];
+                    let searchStr = name+url;
+                    let pattern = new RegExp(terms[j],"gi");
+                    if (searchStr.match(pattern)) {
+
+                        searchResults.push({
+                                'name': name,
+                                'url': url
+                        });
+                    }
+                }
+                catch(ex) {
+                    continue;
+                }
+            }
+        }
+        return searchResults;
+    },
+
+    getInitialResultSet: function(terms) {
+        // check if a found host-name begins like the search-term
+        let searchResults = [];
+        searchResults = searchResults.concat(this._checkBookmarknames(this._configBookmarks, terms));
+
+        if (searchResults.length > 0) {
+            return(searchResults);
+        }
+
+        return []
+    },
+
+    getSubsearchResultSet: function(previousResults, terms) {
+        return this.getInitialResultSet(terms);
+    }
+});
 
 function init(meta) {
 }
 
 function enable() {
-	if (FBSearchProvider==null) {
-		FBSearchProvider = new FirefoxBookmarksSearchProvider();
-		Main.overview.addSearchProvider(FBSearchProvider);
-	}
+    if (FBSearchProvider==null) {
+        FBSearchProvider = new FirefoxBookmarksSearchProvider();
+        Main.overview.addSearchProvider(FBSearchProvider);
+    }
 }
 
 function disable() {
-	if (FBSearchProvider!=null) {
-		Main.overview.removeSearchProvider(FBSearchProvider);
-		FBSearchProvider = null;
-	}
-	
-	bookmarkFileMonitor.cancel();
+    if (FBSearchProvider!=null) {
+        Main.overview.removeSearchProvider(FBSearchProvider);
+        FBSearchProvider = null;
+    }
+
+    bookmarkFileMonitor.cancel();
 }
 
