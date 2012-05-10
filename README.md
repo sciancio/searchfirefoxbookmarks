@@ -25,7 +25,7 @@ error message is.
 Current Version
 ========================
 
-Release 0.1.
+Release 0.3.
 
 Other Info
 ========================
@@ -40,5 +40,5 @@ SFP try to retrieve the last json backup, but you can suggest the correct path b
 * setting a environment variable, FIREFOX_BOOKMARK_FILE, with complete path of json file backup
 
 
-
+Release 0.3: added support for IsRelative field in profiles.ini configuration file.
 

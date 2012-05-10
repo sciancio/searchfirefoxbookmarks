@@ -58,15 +58,19 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         } else {
             // Default
             let firefoxProfileFile = GLib.build_filenamev([GLib.get_home_dir(), ".mozilla/firefox/profiles.ini"]);
-            var [result, defaultProfile] = this._getFirefoxDefaultProfile(firefoxProfileFile);
+            var [result, defaultProfile, defaultIsRelative] = this._getFirefoxDefaultProfile(firefoxProfileFile);
 
-            let mozillaDefaultDirPath = GLib.build_filenamev([GLib.get_home_dir(), ".mozilla/firefox/", 
-                        defaultProfile, "bookmarkbackups/"]);
+            let mozillaDefaultDirPath = "";
+            if (defaultIsRelative == 1) {
+                mozillaDefaultDirPath = GLib.build_filenamev([GLib.get_home_dir(), ".mozilla/firefox/", 
+                            defaultProfile, "bookmarkbackups/"]);
+            } else {
+                mozillaDefaultDirPath = GLib.build_filenamev([defaultProfile, "bookmarkbackups/"]);
+            }
 
             if ( !(this.bookmarkFilePath = this._getBookmarkFilePath(mozillaDefaultDirPath)) ) {
                 return false;
             }
-
         }
 
         this._configBookmarks = [];
@@ -83,7 +87,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
 
     _getFirefoxDefaultProfile : function (firefoxProfileFile) {
 
-        let last_path, last_default, default_path;
+        let last_path, last_default, last_isrelative, default_path, default_isrelative;
 
         if (GLib.file_test(firefoxProfileFile, GLib.FileTest.EXISTS) ) {
             let filedata = GLib.file_get_contents(firefoxProfileFile, null, 0);
@@ -92,14 +96,16 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
                 let lines = String(filedata[1]).split('\n');
 
                 for (let i=0; i<lines.length; i++) {
-                    if (lines[i] == '') continue;			// empty lines
+                    if (lines[i] == '') continue;           // empty lines
 
                     var key_value = lines[i].match(/([^]*)=([^]*)/);
-                    if (key_value != null) {	// key-value pair
+                    if (key_value != null) {                // key-value pair
                         if (key_value[1] == 'Path') last_path = key_value[2];
+                        if (key_value[1] == 'IsRelative') last_isrelative = key_value[2];
                         if (key_value[1] == 'Default') last_default = key_value[2];
 
                         default_path = last_path;
+                        default_isrelative = last_isrelative;
                         if (last_default == 1) break; else continue;
                     }
                 }
@@ -107,7 +113,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
 
         } else return [false, "File not exist"];
 
-        return [true, default_path];
+        return [true, default_path, default_isrelative];
     },
 
     // Read all bookmarks tree
