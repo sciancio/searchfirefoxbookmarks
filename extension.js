@@ -229,7 +229,11 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
             let appSys = Shell.AppSystem.get_default();
             let app = appSys.lookup_heuristic_basename('firefox.desktop');
 
-            let bookmark_name = resultId.name;
+            let bookmark_name = "";
+            if (resultId.name)
+                bookmark_name = resultId.name;
+            else
+                bookmark_name = resultId.url;
 
             metas.push({ 'id': resultId,
                      'name': bookmark_name,
