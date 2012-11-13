@@ -33,12 +33,15 @@ var FBSearchProvider = null;
 
 var bookmarkFileMonitor = null;
 
+let ShellVersion = imports.misc.config.PACKAGE_VERSION.split('.');
 
-const FirefoxBookmarksSearchProvider = new Lang.Class({
-    Name: 'FirefoxBookmarksSearchProvider',
-    Extends: Search.SearchProvider,
+function FirefoxBookmarksSearchProvider() {
+    this._init.apply(this, arguments);
+}
+FirefoxBookmarksSearchProvider.prototype = {
+    __proto__: Search.SearchProvider.prototype,
 
-    _init: function(name) {
+    _init: function () {
         Search.SearchProvider.prototype._init.call(this, "FIREFOX BOOKMARKS");
 
         // Retrieve environment variables
@@ -196,7 +199,13 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
 
             if (type == Gio.FileType.REGULAR) {
 
-                let infoTimeVal = info.get_modification_time();
+                let infoTimeVal;
+                if (ShellVersion[1] < 4) {
+                    infoTimeVal = new GLib.TimeVal();
+                    info.get_modification_time(infoTimeVal);
+                } else {
+                    infoTimeVal = info.get_modification_time();
+                }
 
                 if (infoTimeVal.tv_sec > max) {
                     max = infoTimeVal.tv_sec;
@@ -216,34 +225,29 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         return GLib.build_filenamev([bookmarkDir, lastFile.get_name()]);
     },
 
+    getResultMeta: function (id) {
+        let bookmark_name = "";
+        if (id.name.trim())
+            bookmark_name = id.name;
+        else
+            bookmark_name = id.url;
 
+        return {
+            id: id,
+            name: bookmark_name,
+            createIcon: function (size) {
+                let icon = new St.Icon({
+                    gicon: new Gio.ThemedIcon({name: 'firefox'}),
+                    icon_size: size
+                });
+                icon.icon_type = St.IconType.FULLCOLOR;
+                return icon;
+            }
+        };
+    },
 
-    getResultMetas: function(resultIds) {
-
-        let metas = [];
-        
-        for (let i = 0; i < resultIds.length; i++) {
-
-            let resultId = resultIds[i];
-
-            let appSys = Shell.AppSystem.get_default();
-            let app = appSys.lookup_heuristic_basename('firefox.desktop');
-
-            let bookmark_name = "";
-            if (resultId.name)
-                bookmark_name = resultId.name;
-            else
-                bookmark_name = resultId.url;
-
-            metas.push({ 'id': resultId,
-                     'name': bookmark_name,
-                     'createIcon': function(size) {
-                            let xicon = new Gio.ThemedIcon({name: 'firefox'});
-                            return new St.Icon({icon_size: size, gicon: xicon});
-                    }
-            });
-        }
-        return metas;
+    getResultMetas: function (resultIds) {
+        return resultIds.map(this.getResultMeta);
     },
 
     activateResult: function(id) {
@@ -276,6 +280,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     },
 
     getInitialResultSet: function(terms) {
+        log('getInitialResultSet');
         // check if a found host-name begins like the search-term
         let searchResults = [];
         searchResults = searchResults.concat(this._checkBookmarknames(this._configBookmarks, terms));
@@ -290,7 +295,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     getSubsearchResultSet: function(previousResults, terms) {
         return this.getInitialResultSet(terms);
     }
-});
+};
 
 function init(meta) {
 }
