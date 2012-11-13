@@ -218,33 +218,37 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
 
 
 
-    getResultMetas: function(resultIds) {
-
-        let metas = [];
-        
-        for (let i = 0; i < resultIds.length; i++) {
-
-            let resultId = resultIds[i];
-
-            let appSys = Shell.AppSystem.get_default();
-            let app = appSys.lookup_heuristic_basename('firefox.desktop');
-
-            let bookmark_name = "";
-            if (resultId.name)
-                bookmark_name = resultId.name;
-            else
-                bookmark_name = resultId.url;
-
-            metas.push({ 'id': resultId,
-                     'name': bookmark_name,
-                     'createIcon': function(size) {
-                            let xicon = new Gio.ThemedIcon({name: 'firefox'});
-                            return new St.Icon({icon_size: size, gicon: xicon});
-                    }
-            });
+    getResultMetas: function(resultIds, callback) {
+        let metas = resultIds.map(this.getResultMeta, this);
+        let metas = resultIds.map(this.getResultMeta, this);
+        try {
+            callback(metas);
+        } finally {
+            return metas;
         }
         return metas;
     },
+
+    getResultMeta: function(resultId) {
+        let appSys = Shell.AppSystem.get_default();
+        let app = appSys.lookup_heuristic_basename('firefox.desktop');
+
+        let bookmark_name = "";
+        if (resultId.name)
+            bookmark_name = resultId.name;
+        else
+            bookmark_name = resultId.url;
+
+        return { 'id': resultId,
+                 'name': bookmark_name,
+                 'createIcon': function(size) {
+                        let icon = null;
+                        if (app) icon = app.create_icon_texture(size);
+                        return icon;
+               }
+        };
+    },
+
 
     activateResult: function(id) {
         Util.spawn(['/usr/bin/firefox', '--new-tab', id.url]);
@@ -275,21 +279,22 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         return searchResults;
     },
 
-    getInitialResultSet: function(terms) {
+    _getResultSet: function(sessions, terms) {
         // check if a found host-name begins like the search-term
         let searchResults = [];
         searchResults = searchResults.concat(this._checkBookmarknames(this._configBookmarks, terms));
 
-        if (searchResults.length > 0) {
-            return(searchResults);
-        }
+        this.searchSystem.pushResults(this, searchResults);
+    },
 
-        return []
+    getInitialResultSet: function(terms) {
+        return this._getResultSet(this._sessions, terms);
     },
 
     getSubsearchResultSet: function(previousResults, terms) {
-        return this.getInitialResultSet(terms);
+        return this._getResultSet(this._sessions, terms);
     }
+
 });
 
 function init(meta) {
