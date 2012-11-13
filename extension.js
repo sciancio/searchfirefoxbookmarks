@@ -280,16 +280,13 @@ FirefoxBookmarksSearchProvider.prototype = {
     },
 
     getInitialResultSet: function(terms) {
-        log('getInitialResultSet');
         // check if a found host-name begins like the search-term
-        let searchResults = [];
-        searchResults = searchResults.concat(this._checkBookmarknames(this._configBookmarks, terms));
-
-        if (searchResults.length > 0) {
-            return(searchResults);
+        let results = this._checkBookmarknames(this._configBookmarks, terms);
+        // 3.6 compatibility
+        if (ShellVersion[1] >= 6) {
+            this.searchSystem.pushResults(this, results);
         }
-
-        return []
+        return results;
     },
 
     getSubsearchResultSet: function(previousResults, terms) {
