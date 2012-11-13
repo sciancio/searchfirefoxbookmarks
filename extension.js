@@ -272,8 +272,12 @@ FirefoxBookmarksSearchProvider.prototype = {
         };
     },
 
-    getResultMetas: function (resultIds) {
-        return resultIds.map(this.getResultMeta);
+    getResultMetas: function (resultIds, callback) {
+        let results = resultIds.map(this.getResultMeta);
+        if (callback) {
+            callback(results);
+        }
+        return results;
     },
 
     activateResult: function (id) {
@@ -285,27 +289,41 @@ FirefoxBookmarksSearchProvider.prototype = {
     },
 
     _checkBookmarknames: function (bookmarks, terms) {
+        terms = terms.map(function (w) { return w.toLowerCase(); });
         let searchResults = [];
+        // we give +2 for each term matching the name,
+        // +1 for each term matching the URL, and additional
+        // +1 if it matches at the start of the name.
         for (let i = 0; i < bookmarks.length; i++) {
             let name = bookmarks[i][0];
             let url = bookmarks[i][1];
-            let searchStr = name + url;
+            let score = 0;
             for (let j = 0; j < terms.length; j++) {
-                try {
-                    let pattern = new RegExp(terms[j], "gi");
-                    if (searchStr.match(pattern)) {
-                        // TODO: bookmarks being added multiple times?
-                        searchResults.push({
-                            'name': name,
-                            'url': url
-                        });
-                    }
+                let term = terms[j];
+                if (url.toLowerCase().indexOf(term) > -1) {
+                    ++score;
                 }
-                catch (ex) {
-                    continue;
+                let index = name.toLowerCase().indexOf(term);
+                if (index > -1) {
+                    score += 2;
+                }
+                if (index === 0) {
+                    ++score;
+                }
+                if (score) {
+                    searchResults.push({
+                        name: name,
+                        url: url,
+                        score: score
+                    });
                 }
             }
         }
+        // sort by descending score, ascending alphabetical to break ties.
+        searchResults.sort(function (r1, r2) {
+            return (r1.score < r2.score) ||
+                    (r1.name > r2.name);
+        });
         return searchResults;
     },
 
