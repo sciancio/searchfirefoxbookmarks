@@ -119,7 +119,7 @@ FirefoxBookmarksSearchProvider.prototype = {
                         }
                         default_path = last_path;
                         default_isrelative = last_isrelative;
-                        if (last_default === 1)
+                        if (last_default == 1)
                             break;
                         else
                             continue;
