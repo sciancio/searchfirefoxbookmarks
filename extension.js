@@ -16,7 +16,6 @@
 //   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 const Main = imports.ui.main;
-const Search = imports.ui.search;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Lang = imports.lang;
@@ -34,14 +33,12 @@ let FBSearchProvider = null;
 let ShellVersion = imports.misc.config.PACKAGE_VERSION.split('.');
 let firefoxApp = Shell.AppSystem.get_default().initial_search(['firefox'])[0];
 
-function FirefoxBookmarksSearchProvider() {
-    this._init.apply(this, arguments);
-}
-FirefoxBookmarksSearchProvider.prototype = {
-    __proto__: Search.SearchProvider.prototype,
 
-    _init: function () {
-        Search.SearchProvider.prototype._init.call(this, "FIREFOX BOOKMARKS");
+const FirefoxBookmarksSearchProvider = new Lang.Class({
+    Name: 'FirefoxBookmarksSearchProvider',
+    
+    _init: function(title) {
+        this.title = title;
 
         // Retrieve environment variables
         this.FirefoxBookmarkBackupsDir = GLib.getenv("FIREFOX_BOOKMARK_BACKUPS_DIR");
@@ -341,17 +338,20 @@ FirefoxBookmarksSearchProvider.prototype = {
         return this.getInitialResultSet(terms);
     },
 
+    createResultActor: function (resultMeta, terms) {
+        return null;
+    },
     destroy: function () {
         this._bookmarkFileMonitor.cancel();
     }
-};
+});
 
 function init() {
 }
 
 function enable() {
     if (!FBSearchProvider) {
-        FBSearchProvider = new FirefoxBookmarksSearchProvider();
+        FBSearchProvider = new FirefoxBookmarksSearchProvider("FIREFOX BOOKMARKS");
         Main.overview.addSearchProvider(FBSearchProvider);
     }
 }
