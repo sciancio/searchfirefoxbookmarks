@@ -1,9 +1,10 @@
 {
-    "shell-version": ["3.2", "3.4", "3.6", "3.8"],
-    "version": "0.4.1",
+    "shell-version": ["3.10"],
+    "version": "0.4.2",
     "uuid": "searchfirefoxbookmarks@ciancio.net",
     "name": "Search Firefox Bookmarks Provider",
     "description": "A gnome-shell extension which searches the firefox bookmarks and provides results in your shell overview.",
     "url": "https://github.com/sciancio/searchfirefoxbookmarks",
     "original-authors": "Stefano Ciancio"
 }
+

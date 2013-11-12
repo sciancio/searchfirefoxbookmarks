@@ -30,7 +30,6 @@ const St = imports.gi.St;
 // or has been disabled via disable().
 let FBSearchProvider = null;
 
-let ShellVersion = imports.misc.config.PACKAGE_VERSION.split('.');
 let firefoxApp = Shell.AppSystem.get_default().initial_search(['firefox'])[0];
 
 
@@ -213,12 +212,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
             if (type === Gio.FileType.REGULAR) {
 
                 let infoTimeVal;
-                if (ShellVersion[1] < 4) {
-                    infoTimeVal = new GLib.TimeVal();
-                    info.get_modification_time(infoTimeVal);
-                } else {
-                    infoTimeVal = info.get_modification_time();
-                }
+                infoTimeVal = info.get_modification_time();
 
                 if (infoTimeVal.tv_sec > max) {
                     max = infoTimeVal.tv_sec;
@@ -239,6 +233,14 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         }
 
         return GLib.build_filenamev([bookmarkDir, lastFile.get_name()]);
+    },
+
+    filterResults: function(providerResults, maxResults) {
+        return providerResults;
+    },
+
+    createResultObject: function(result, terms) {
+        return null;
     },
 
     getResultMeta: function (id) {
@@ -327,10 +329,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     getInitialResultSet: function (terms) {
         // check if a found host-name begins like the search-term
         let results = this._checkBookmarknames(this._configBookmarks, terms);
-        // 3.6 compatibility
-        if (ShellVersion[1] >= 6) {
-            this.searchSystem.pushResults(this, results);
-        }
+        this.searchSystem.setResults(this, results);
         return results;
     },
 
