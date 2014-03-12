@@ -342,7 +342,8 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     },
     destroy: function () {
         this._bookmarkFileMonitor.cancel();
-    }
+    },
+    createResultContainerActor: function() {return null;} /* issue #8: provider.createResultContainerActor is not a function */
 });
 
 function init() {
