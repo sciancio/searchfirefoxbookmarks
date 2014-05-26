@@ -346,6 +346,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     },
     destroy: function () {
         this._bookmarkFileMonitor.cancel();
+        this._configBookmarks = {};
     }
 });
 
@@ -362,6 +363,8 @@ function enable() {
 function disable() {
     if (FBSearchProvider) {
         // Main.overview.removeSearchProvider(FBSearchProvider);
+        Main.overview.viewSelector._searchResults._searchSystem._unregisterProvider(FBSearchProvider);
+        Main.overview.viewSelector._searchResults._searchSystem.emit('providers-changed');
         FBSearchProvider.destroy();
         FBSearchProvider = null;
     }
