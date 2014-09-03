@@ -30,7 +30,7 @@ const St = imports.gi.St;
 // or has been disabled via disable().
 let FBSearchProvider = null;
 
-let firefoxApp = Shell.AppSystem.get_default().initial_search(['firefox'])[0];
+let firefoxApp = Shell.AppSystem.get_default().lookup_app("firefox");;
 
 
 const FirefoxBookmarksSearchProvider = new Lang.Class({
@@ -76,7 +76,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
             }
         }
 
-        this._configBookmarks = [];
+        this._configBookmarks = {};
 
         this._readBookmarks();
 
@@ -157,7 +157,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
             let child = jsondata.children[i];
 
             if (child.root === 'tagsFolder') continue;
-
+            
             this._readTree(child.children, this);
         }
 
@@ -165,7 +165,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     },
 
     _readTree : function (node) {
-
+        if (node === undefined) return;
         let child;
 
         // For each child ...
@@ -174,7 +174,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
 
             if (child.hasOwnProperty('type')) {
                 if (child.type === 'text/x-moz-place') {
-                    this._configBookmarks.push([child.title, child.uri]);
+                    this._configBookmarks[child.guid] = [child.title, child.uri];
                 }
 
                 if (child.type === 'text/x-moz-place-container') {
@@ -236,7 +236,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     },
 
     filterResults: function(providerResults, maxResults) {
-        return providerResults;
+        return providerResults.slice(0, maxResults);
     },
 
     createResultObject: function(result, terms) {
@@ -245,10 +245,12 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
 
     getResultMeta: function (id) {
         let bookmark_name = "";
-        if (id.name.trim())
-            bookmark_name = id.name;
+        let name = this._configBookmarks[id][0];
+        let url = this._configBookmarks[id][1]; 
+        if (name.trim())
+            bookmark_name = name;
         else
-            bookmark_name = id.url;
+            bookmark_name = url;
 
         let createIcon;
         if (firefoxApp) {
@@ -272,7 +274,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     },
 
     getResultMetas: function (resultIds, callback) {
-        let results = resultIds.map(this.getResultMeta);
+        let results = resultIds.map(Lang.bind(this, this.getResultMeta));
         if (callback) {
             callback(results);
         }
@@ -281,9 +283,9 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
 
     activateResult: function (id) {
         if (firefoxApp) {
-            firefoxApp.launch(global.get_current_time(), [id.url], -1);
+            firefoxApp.launch(global.get_current_time(), [this._configBookmarks[id][1]], -1);
         } else {
-            Util.spawn(['/usr/bin/firefox', '--new-tab', id.url]);
+            Util.spawn(['/usr/bin/firefox', '--new-tab', this._configBookmarks[id][1]]);
         }
     },
 
@@ -293,9 +295,10 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         // we give +2 for each term matching the name,
         // +1 for each term matching the URL, and additional
         // +1 if it matches at the start of the name.
-        for (let i = 0; i < bookmarks.length; i++) {
-            let name = bookmarks[i][0];
-            let url = bookmarks[i][1];
+        for (var bookmarkId in bookmarks) {
+            if (!bookmarks.hasOwnProperty(bookmarkId)) continue;
+            let name = bookmarks[bookmarkId][0];
+            let url = bookmarks[bookmarkId][1];
             let score = 0;
             for (let j = 0; j < terms.length; j++) {
                 let term = terms[j];
@@ -312,8 +315,9 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
                 if (score) {
                     searchResults.push({
                         name: name,
-                        url: url,
-                        score: score
+                        // url: url,
+                        score: score,
+                        id: bookmarkId
                     });
                 }
             }
@@ -323,18 +327,18 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
             return (r1.score < r2.score) ||
                     (r1.name > r2.name);
         });
-        return searchResults;
+        return searchResults.map(function(it) { return it.id });
     },
 
-    getInitialResultSet: function (terms) {
+    getInitialResultSet: function (terms, callback, cancelable) {
         // check if a found host-name begins like the search-term
         let results = this._checkBookmarknames(this._configBookmarks, terms);
-        this.searchSystem.setResults(this, results);
+        callback(results);
         return results;
     },
 
-    getSubsearchResultSet: function (previousResults, terms) {
-        return this.getInitialResultSet(terms);
+    getSubsearchResultSet: function (previousResults, terms, callback, cancelable) {
+        return this.getInitialResultSet(terms, callback, cancelable);
     },
 
     createResultActor: function (resultMeta, terms) {
@@ -342,6 +346,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     },
     destroy: function () {
         this._bookmarkFileMonitor.cancel();
+        this._configBookmarks = {};
     }
 });
 
@@ -351,13 +356,15 @@ function init() {
 function enable() {
     if (!FBSearchProvider) {
         FBSearchProvider = new FirefoxBookmarksSearchProvider("FIREFOX BOOKMARKS");
-        Main.overview.addSearchProvider(FBSearchProvider);
+        Main.overview.viewSelector._searchResults._searchSystem.addProvider(FBSearchProvider);
     }
 }
 
 function disable() {
     if (FBSearchProvider) {
-        Main.overview.removeSearchProvider(FBSearchProvider);
+        // Main.overview.removeSearchProvider(FBSearchProvider);
+        Main.overview.viewSelector._searchResults._searchSystem._unregisterProvider(FBSearchProvider);
+        Main.overview.viewSelector._searchResults._searchSystem.emit('providers-changed');
         FBSearchProvider.destroy();
         FBSearchProvider = null;
     }
