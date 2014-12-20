@@ -337,13 +337,11 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
 
     getInitialResultSet: function (terms, callback, cancelable) {
         // check if a found host-name begins like the search-term
-        let results = this._checkBookmarknames(this._configBookmarks, terms);
-        callback(results);
-        return results;
+        callback(this._checkBookmarknames(this._configBookmarks, terms));
     },
 
     getSubsearchResultSet: function (previousResults, terms, callback, cancelable) {
-        return this.getInitialResultSet(terms, callback, cancelable);
+        this.getInitialResultSet(terms, callback, cancelable);
     },
 
     createResultActor: function (resultMeta, terms) {
