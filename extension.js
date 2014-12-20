@@ -296,9 +296,14 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         // +1 for each term matching the URL, and additional
         // +1 if it matches at the start of the name.
         for (var bookmarkId in bookmarks) {
-            if (!bookmarks.hasOwnProperty(bookmarkId)) continue;
+            if (!bookmarks.hasOwnProperty(bookmarkId)) {
+                continue;
+            }
             let name = bookmarks[bookmarkId][0];
             let url = bookmarks[bookmarkId][1];
+            if (!name || !url) {
+                continue;
+            }
             let score = 0;
             for (let j = 0; j < terms.length; j++) {
                 let term = terms[j];
