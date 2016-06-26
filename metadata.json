@@ -1,5 +1,5 @@
 {
-    "shell-version": ["3.12"],
+    "shell-version": ["3.18"],
     "version": "0.4.3",
     "uuid": "searchfirefoxbookmarks@ciancio.net",
     "name": "Search Firefox Bookmarks Provider",
