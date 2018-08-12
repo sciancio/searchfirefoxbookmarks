@@ -356,15 +356,23 @@ function init() {
 function enable() {
     if (!FBSearchProvider) {
         FBSearchProvider = new FirefoxBookmarksSearchProvider("FIREFOX BOOKMARKS");
-        Main.overview.viewSelector._searchResults._searchSystem.addProvider(FBSearchProvider);
+        if(typeof Main.overview.viewSelector._searchResults._registerProvider === "function") { //3.14
+            Main.overview.viewSelector._searchResults._registerProvider(FBSearchProvider);
+        } else if(typeof Main.overview.viewSelector._searchResults._searchSystem === "object" &&
+                  typeof Main.overview.viewSelector._searchResults._searchSystem.addProvider === "function") { //3.12
+            Main.overview.viewSelector._searchResults._searchSystem.addProvider(FBSearchProvider);
+        }
     }
 }
 
 function disable() {
     if (FBSearchProvider) {
-        // Main.overview.removeSearchProvider(FBSearchProvider);
-        Main.overview.viewSelector._searchResults._searchSystem._unregisterProvider(FBSearchProvider);
-        Main.overview.viewSelector._searchResults._searchSystem.emit('providers-changed');
+        if(typeof Main.overview.viewSelector._searchResults._registerProvider === "function") { //3.14
+            Main.overview.viewSelector._searchResults._unregisterProvider(FBSearchProvider);
+        } else {
+            Main.overview.viewSelector._searchResults._searchSystem._unregisterProvider(FBSearchProvider);
+            Main.overview.viewSelector._searchResults._searchSystem.emit('providers-changed');
+        }
         FBSearchProvider.destroy();
         FBSearchProvider = null;
     }
