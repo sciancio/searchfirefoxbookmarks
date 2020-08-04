@@ -4,8 +4,7 @@
   "name": "Search Firefox Bookmarks Provider", 
   "original-authors": "Stefano Ciancio", 
   "shell-version": [
-    "3.12",
-    "3.36",
+    "3.12"
   ], 
   "url": "https://github.com/sciancio/searchfirefoxbookmarks", 
   "uuid": "searchfirefoxbookmarks@ciancio.net", 
