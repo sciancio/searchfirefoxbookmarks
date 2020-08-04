@@ -3,6 +3,10 @@ What is Search Firefox Bookmarks
 
 Search Firefox Bookmarks (SFB) is a GNOME Shell extension which searches the firefox bookmarks and provides results in your shell overview
 
+Requirements
+========================
+
+[lz4json](https://github.com/andikleen/lz4json) is required to handle the file format for Firefox 
 
 How to install
 ========================
