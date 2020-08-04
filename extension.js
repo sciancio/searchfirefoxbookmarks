@@ -30,18 +30,29 @@ const St = imports.gi.St;
 // or has been disabled via disable().
 let FBSearchProvider = null;
 
-let firefoxApp = Shell.AppSystem.get_default().lookup_app("firefox");;
+let firefoxApp = Shell.AppSystem.get_default().lookup_app("firefox.desktop")  || Shell.AppSystem.get_default().lookup_app("firefox-developer-edition.desktop");
 
 
 const FirefoxBookmarksSearchProvider = new Lang.Class({
     Name: 'FirefoxBookmarksSearchProvider',
-    
-    _init: function(title) {
-        this.title = title;
 
+    _init: function (title) {
+        this.title = title;
         // Retrieve environment variables
         this.FirefoxBookmarkBackupsDir = GLib.getenv("FIREFOX_BOOKMARK_BACKUPS_DIR");
         this.FirefoxBookmarkFile = GLib.getenv("FIREFOX_BOOKMARK_FILE");
+
+        let lz4;
+        try {
+            lz4 = GLib.spawn_command_line_sync('lz4jsoncat');
+            if(!lz4[0]){
+                Main.notifyError("lz4json missing", "Please install it and retry");
+                return false;
+            }
+        } catch (e) {
+            Main.notifyError("lz4json missing", "Please install it and retry");
+            return false;
+        }
 
         // Check environment variables
         if (this.FirefoxBookmarkFile) {
@@ -50,7 +61,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         } else if (this.FirefoxBookmarkBackupsDir) {
             // Env Bookmark Dir defined
             if (!(this.bookmarkFilePath =
-                    this._getBookmarkFilePath(this.FirefoxBookmarkBackupsDir))) {
+                this._getBookmarkFilePath(this.FirefoxBookmarkBackupsDir))) {
                 return false;
             }
         } else {
@@ -67,11 +78,11 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
                 ]);
             } else {
                 mozillaDefaultDirPath = GLib.build_filenamev(
-                        [defaultProfile, "bookmarkbackups/"]);
+                    [defaultProfile, "bookmarkbackups/"]);
             }
 
             if (!(this.bookmarkFilePath =
-                    this._getBookmarkFilePath(mozillaDefaultDirPath))) {
+                this._getBookmarkFilePath(mozillaDefaultDirPath))) {
                 return false;
             }
         }
@@ -83,7 +94,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         let file = Gio.file_new_for_path(this.bookmarkFilePath);
         this._bookmarkFileMonitor = file.monitor(Gio.FileMonitorFlags.NONE, null);
         this._bookmarkFileMonitor.connect('changed',
-                Lang.bind(this, this._readBookmarks));
+            Lang.bind(this, this._readBookmarks));
 
         return true;
     },
@@ -92,7 +103,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         let last_path, last_default, last_isrelative, default_path, default_isrelative;
 
         if (GLib.file_test(firefoxProfileFile, GLib.FileTest.EXISTS)) {
-            let filedata = GLib.file_get_contents(firefoxProfileFile, null, 0);
+            let filedata = GLib.file_get_contents(firefoxProfileFile);
 
             if (filedata[0]) {
                 let lines = String(filedata[1]).split('\n');
@@ -103,15 +114,15 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
                     let key_value = lines[i].match(/^([^=]+)=(.+)$/);
                     if (key_value != null) {                // key-value pair
                         switch (key_value[1]) {
-                        case 'Path':
-                            last_path = key_value[2];
-                            break;
-                        case 'IsRelative':
-                            last_isrelative = key_value[2];
-                            break;
-                        case 'Default':
-                            last_default = key_value[2];
-                            break;
+                            case 'Path':
+                                last_path = key_value[2];
+                                break;
+                            case 'IsRelative':
+                                last_isrelative = key_value[2];
+                                break;
+                            case 'Default':
+                                last_default = key_value[2];
+                                break;
                         }
                         default_path = last_path;
                         default_isrelative = last_isrelative;
@@ -129,20 +140,19 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     },
 
     // Read all bookmarks tree
-    _readBookmarks : function () {
-
-        let filedata;
+    _readBookmarks: function () {
+        let lz4;
         try {
-            filedata = GLib.file_get_contents(this.bookmarkFilePath, null, 0);
+            lz4 = GLib.spawn_command_line_sync('lz4jsoncat ' + this.bookmarkFilePath);
         } catch (e) {
             Main.notifyError("Error reading file", e.message);
             return false;
         }
 
         let jsondata = null;
-        if (filedata[1] && filedata[1].length) {
+        if (lz4[1] && lz4[1].length) {
             try {
-                jsondata = JSON.parse(filedata[1]);
+                jsondata = JSON.parse(lz4[1]);
             } catch (e) {
                 Main.notifyError("Error parsing file - " + filedata, e.message);
                 return false;
@@ -157,23 +167,23 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
             let child = jsondata.children[i];
 
             if (child.root === 'tagsFolder') continue;
-            
+
             this._readTree(child.children, this);
         }
 
         return true;
     },
 
-    _readTree : function (node) {
+    _readTree: function (node) {
         if (node === undefined) return;
         let child;
 
         // For each child ...
         for (let i = 0; i < node.length; i++) {
             child = node[i];
-
             if (child.hasOwnProperty('type')) {
                 if (child.type === 'text/x-moz-place') {
+                    // log('Child ' + child.title);
                     this._configBookmarks[child.guid] = [child.title, child.uri];
                 }
 
@@ -186,7 +196,7 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
 
     // Return complete path of bookmark json file
     // bookmarkDir: dir of json bookmark file
-    _getBookmarkFilePath : function (bookmarkDir) {
+    _getBookmarkFilePath: function (bookmarkDir) {
         let dir = '',
             backupEnum;
         if ((bookmarkDir) && GLib.file_test(bookmarkDir, GLib.FileTest.IS_DIR)) {
@@ -224,10 +234,10 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         backupEnum.close(null);
 
         if (!lastFile ||
-                !GLib.file_test(
-                    GLib.build_filenamev([bookmarkDir, lastFile.get_name()]),
-                    GLib.FileTest.EXISTS
-                )) {
+            !GLib.file_test(
+                GLib.build_filenamev([bookmarkDir, lastFile.get_name()]),
+                GLib.FileTest.EXISTS
+            )) {
             Main.notifyError("Directory Error", "It seems are no files in " + bookmarkDir);
             return false;
         }
@@ -235,18 +245,18 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         return GLib.build_filenamev([bookmarkDir, lastFile.get_name()]);
     },
 
-    filterResults: function(providerResults, maxResults) {
+    filterResults: function (providerResults, maxResults) {
         return providerResults.slice(0, maxResults);
     },
 
-    createResultObject: function(result, terms) {
+    createResultObject: function (result, terms) {
         return null;
     },
 
     getResultMeta: function (id) {
         let bookmark_name = "";
         let name = this._configBookmarks[id][0];
-        let url = this._configBookmarks[id][1]; 
+        let url = this._configBookmarks[id][1];
         if (name.trim())
             bookmark_name = name;
         else
@@ -282,15 +292,20 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
     },
 
     activateResult: function (id) {
+/*
         if (firefoxApp) {
             firefoxApp.launch(global.get_current_time(), [this._configBookmarks[id][1]], -1);
         } else {
             Util.spawn(['/usr/bin/firefox', '--new-tab', this._configBookmarks[id][1]]);
         }
+*/
+        Util.spawn(['xdg-open', this._configBookmarks[id][1]]);
     },
 
     _checkBookmarknames: function (bookmarks, terms) {
-        terms = terms.map(function (w) { return w.toLowerCase(); });
+        terms = terms.map(function (w) {
+            return w.toLowerCase();
+        });
         let searchResults = [];
         // we give +2 for each term matching the name,
         // +1 for each term matching the URL, and additional
@@ -325,9 +340,11 @@ const FirefoxBookmarksSearchProvider = new Lang.Class({
         // sort by descending score, ascending alphabetical to break ties.
         searchResults.sort(function (r1, r2) {
             return (r1.score < r2.score) ||
-                    (r1.name > r2.name);
+                (r1.name > r2.name);
         });
-        return searchResults.map(function(it) { return it.id });
+        return searchResults.map(function (it) {
+            return it.id
+        });
     },
 
     getInitialResultSet: function (terms, callback, cancelable) {
@@ -354,17 +371,28 @@ function init() {
 }
 
 function enable() {
+
     if (!FBSearchProvider) {
         FBSearchProvider = new FirefoxBookmarksSearchProvider("FIREFOX BOOKMARKS");
-        Main.overview.viewSelector._searchResults._searchSystem.addProvider(FBSearchProvider);
+        if (typeof Main.overview.viewSelector === "object" && typeof Main.overview.viewSelector._searchResults === "object") {
+            if (typeof Main.overview.viewSelector._searchResults._registerProvider === "function") { //3.14
+                Main.overview.viewSelector._searchResults._registerProvider(FBSearchProvider);
+            } else if (typeof Main.overview.viewSelector._searchResults._searchSystem === "object" &&
+                typeof Main.overview.viewSelector._searchResults._searchSystem.addProvider === "function") { //3.12
+                Main.overview.viewSelector._searchResults._searchSystem.addProvider(FBSearchProvider);
+            }
+        }
     }
 }
 
 function disable() {
     if (FBSearchProvider) {
-        // Main.overview.removeSearchProvider(FBSearchProvider);
-        Main.overview.viewSelector._searchResults._searchSystem._unregisterProvider(FBSearchProvider);
-        Main.overview.viewSelector._searchResults._searchSystem.emit('providers-changed');
+        if(typeof Main.overview.viewSelector._searchResults._registerProvider === "function") { //3.14
+            Main.overview.viewSelector._searchResults._unregisterProvider(FBSearchProvider);
+        } else {
+            Main.overview.viewSelector._searchResults._searchSystem._unregisterProvider(FBSearchProvider);
+            Main.overview.viewSelector._searchResults._searchSystem.emit('providers-changed');
+        }
         FBSearchProvider.destroy();
         FBSearchProvider = null;
     }
